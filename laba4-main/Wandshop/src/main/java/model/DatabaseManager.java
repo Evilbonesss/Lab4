@@ -67,23 +67,22 @@ public class DatabaseManager {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
+        String coreLower = core.trim().toLowerCase();
+        String woodLower = wood.trim().toLowerCase();
 
-        core = normalize(core);
-        wood = normalize(wood);
-
-        String checkCoreSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
+        String checkCoreSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
         PreparedStatement coreStmt = connection.prepareStatement(checkCoreSql);
         coreStmt.setString(1, "сердцевина");
-        coreStmt.setString(2, core);
+        coreStmt.setString(2, coreLower);
         ResultSet coreRs = coreStmt.executeQuery();
         int coreQuantity = coreRs.next() ? coreRs.getInt("quantity") : 0;
         coreRs.close();
         coreStmt.close();
 
-        String checkWoodSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
+        String checkWoodSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
         PreparedStatement woodStmt = connection.prepareStatement(checkWoodSql);
         woodStmt.setString(1, "древесина");
-        woodStmt.setString(2, wood);
+        woodStmt.setString(2, woodLower);
         ResultSet woodRs = woodStmt.executeQuery();
         int woodQuantity = woodRs.next() ? woodRs.getInt("quantity") : 0;
         woodRs.close();
@@ -93,22 +92,23 @@ public class DatabaseManager {
             return false;
         }
 
-        String updateCoreSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND LOWER(component_name) = ?";
+        String updateCoreSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND component_name = ?";
         PreparedStatement updateCoreStmt = connection.prepareStatement(updateCoreSql);
         updateCoreStmt.setString(1, "сердцевина");
-        updateCoreStmt.setString(2, core);
+        updateCoreStmt.setString(2, coreLower);
         updateCoreStmt.executeUpdate();
         updateCoreStmt.close();
 
-        String updateWoodSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND LOWER(component_name) = ?";
+        String updateWoodSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND component_name = ?";
         PreparedStatement updateWoodStmt = connection.prepareStatement(updateWoodSql);
         updateWoodStmt.setString(1, "древесина");
-        updateWoodStmt.setString(2, wood);
+        updateWoodStmt.setString(2, woodLower);
         updateWoodStmt.executeUpdate();
         updateWoodStmt.close();
 
         return true;
     }
+
 
     public void addWand(String core, String wood) throws SQLException {
         if (connection == null) {
@@ -143,10 +143,43 @@ public class DatabaseManager {
         ps.close();
     }
 
+    private boolean existsById(String table, String idField, int id) throws SQLException {
+        String sql = "SELECT 1 FROM " + table + " WHERE " + idField + " = ?";
+        PreparedStatement ps = connection.prepareStatement(sql);
+        ps.setInt(1, id);
+        ResultSet rs = ps.executeQuery();
+        boolean exists = rs.next();
+        rs.close();
+        ps.close();
+        return exists;
+    }
+
+    
     public void addPurchase(int wandId, int customerId, String purchaseDate) throws SQLException {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
+
+        if (!existsById("Wands", "wand_id", wandId)) {
+            throw new SQLException("Палочка с ID " + wandId + " не существует!");
+        }
+
+        if (!existsById("Customers", "customer_id", customerId)) {
+            throw new SQLException("Покупатель с ID " + customerId + " не существует!");
+        }
+ 
+        String wandStatusSql = "SELECT status FROM Wands WHERE wand_id = ?";
+        PreparedStatement statusPs = connection.prepareStatement(wandStatusSql);
+        statusPs.setInt(1, wandId);
+        ResultSet statusRs = statusPs.executeQuery();
+        if (statusRs.next() && !"В наличии".equals(statusRs.getString("status"))) {
+            statusRs.close();
+            statusPs.close();
+            throw new SQLException("Палочка уже продана или недоступна!");
+        }
+        statusRs.close();
+        statusPs.close();
+
         String updateWand = "UPDATE Wands SET status = ? WHERE wand_id = ?";
         PreparedStatement ps1 = connection.prepareStatement(updateWand);
         ps1.setString(1, "Продана");
@@ -164,47 +197,50 @@ public class DatabaseManager {
     }
 
     public void addSupply(String componentType, String componentName, int quantity, String supplyDate) throws SQLException {
-        if (connection == null) {
-            throw new SQLException("Подключение к базе данных не установлено");
-        }
-        componentType = normalize(componentType);
-        componentName = normalize(componentName);
-        // Добавляем запись в Supplies
-        String supplySql = "INSERT INTO Supplies (component_type, component_name, quantity, supply_date) VALUES (?, ?, ?, ?)";
-        PreparedStatement supplyPs = connection.prepareStatement(supplySql);
-        supplyPs.setString(1, componentType);
-        supplyPs.setString(2, componentName);
-        supplyPs.setInt(3, quantity);
-        supplyPs.setString(4, supplyDate);
-        supplyPs.executeUpdate();
-        supplyPs.close();
-
-        String checkComponentSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
-        PreparedStatement checkPs = connection.prepareStatement(checkComponentSql);
-        checkPs.setString(1, componentType);
-        checkPs.setString(2, componentName);
-        ResultSet rs = checkPs.executeQuery();
-        if (rs.next()) {
-            int currentQuantity = rs.getInt("quantity");
-            String updateSql = "UPDATE Components SET quantity = ? WHERE component_type = ? AND LOWER(component_name) = ?";
-            PreparedStatement updatePs = connection.prepareStatement(updateSql);
-            updatePs.setInt(1, currentQuantity + quantity);
-            updatePs.setString(2, componentType);
-            updatePs.setString(3, componentName);
-            updatePs.executeUpdate();
-            updatePs.close();
-        } else {
-            String insertSql = "INSERT INTO Components (component_type, component_name, quantity) VALUES (?, ?, ?)";
-            PreparedStatement insertPs = connection.prepareStatement(insertSql);
-            insertPs.setString(1, componentType);
-            insertPs.setString(2, componentName);
-            insertPs.setInt(3, quantity);
-            insertPs.executeUpdate();
-            insertPs.close();
-        }
-        rs.close();
-        checkPs.close();
+    if (connection == null) {
+        throw new SQLException("Подключение к базе данных не установлено");
     }
+    
+    String typeLower = componentType.trim().toLowerCase();
+    String nameLower = componentName.trim().toLowerCase();
+
+    String supplySql = "INSERT INTO Supplies (component_type, component_name, quantity, supply_date) VALUES (?, ?, ?, ?)";
+    PreparedStatement supplyPs = connection.prepareStatement(supplySql);
+    supplyPs.setString(1, typeLower);
+    supplyPs.setString(2, nameLower);
+    supplyPs.setInt(3, quantity);
+    supplyPs.setString(4, supplyDate);
+    supplyPs.executeUpdate();
+    supplyPs.close();
+
+    String checkComponentSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
+    PreparedStatement checkPs = connection.prepareStatement(checkComponentSql);
+    checkPs.setString(1, typeLower);
+    checkPs.setString(2, nameLower);
+    ResultSet rs = checkPs.executeQuery();
+    if (rs.next()) {
+        int currentQuantity = rs.getInt("quantity");
+        String updateSql = "UPDATE Components SET quantity = ? WHERE component_type = ? AND component_name = ?";
+        PreparedStatement updatePs = connection.prepareStatement(updateSql);
+        updatePs.setInt(1, currentQuantity + quantity);
+        updatePs.setString(2, typeLower);
+        updatePs.setString(3, nameLower);
+        updatePs.executeUpdate();
+        updatePs.close();
+    } else {
+        String insertSql = "INSERT INTO Components (component_type, component_name, quantity) VALUES (?, ?, ?)";
+        PreparedStatement insertPs = connection.prepareStatement(insertSql);
+        insertPs.setString(1, typeLower);
+        insertPs.setString(2, nameLower);
+        insertPs.setInt(3, quantity);
+        insertPs.executeUpdate();
+        insertPs.close();
+    }
+    rs.close();
+    checkPs.close();
+}
+
+
 
     public List<Wand> getAllWands() throws SQLException {
         if (connection == null) {
@@ -315,14 +351,14 @@ public class DatabaseManager {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
-        componentType = normalize(componentType);
+        String typeLower = componentType.trim().toLowerCase();
         List<String> components = new ArrayList<>();
-        String sql = "SELECT DISTINCT LOWER(component_name) AS name FROM Components WHERE component_type = ? AND quantity > 0";
+        String sql = "SELECT component_name FROM Components WHERE component_type = ? AND quantity > 0";
         PreparedStatement ps = connection.prepareStatement(sql);
-        ps.setString(1, componentType);
+        ps.setString(1, typeLower);
         ResultSet rs = ps.executeQuery();
         while (rs.next()) {
-            components.add(rs.getString("name"));
+            components.add(rs.getString("component_name"));
         }
         rs.close();
         ps.close();
