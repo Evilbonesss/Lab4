@@ -8,6 +8,10 @@ import javax.swing.JOptionPane;
 public class DatabaseManager {
     private Connection connection;
 
+    private String normalize(String value) {
+        return value == null ? null : value.trim().toLowerCase();
+    }
+
     public DatabaseManager() {
         try {
             connection = DriverManager.getConnection("jdbc:sqlite:wandshop.db");
@@ -64,7 +68,10 @@ public class DatabaseManager {
             throw new SQLException("Подключение к базе данных не установлено");
         }
 
-        String checkCoreSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
+        core = normalize(core);
+        wood = normalize(wood);
+
+        String checkCoreSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
         PreparedStatement coreStmt = connection.prepareStatement(checkCoreSql);
         coreStmt.setString(1, "сердцевина");
         coreStmt.setString(2, core);
@@ -73,7 +80,7 @@ public class DatabaseManager {
         coreRs.close();
         coreStmt.close();
 
-        String checkWoodSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
+        String checkWoodSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
         PreparedStatement woodStmt = connection.prepareStatement(checkWoodSql);
         woodStmt.setString(1, "древесина");
         woodStmt.setString(2, wood);
@@ -86,14 +93,14 @@ public class DatabaseManager {
             return false;
         }
 
-        String updateCoreSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND component_name = ?";
+        String updateCoreSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND LOWER(component_name) = ?";
         PreparedStatement updateCoreStmt = connection.prepareStatement(updateCoreSql);
         updateCoreStmt.setString(1, "сердцевина");
         updateCoreStmt.setString(2, core);
         updateCoreStmt.executeUpdate();
         updateCoreStmt.close();
 
-        String updateWoodSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND component_name = ?";
+        String updateWoodSql = "UPDATE Components SET quantity = quantity - 1 WHERE component_type = ? AND LOWER(component_name) = ?";
         PreparedStatement updateWoodStmt = connection.prepareStatement(updateWoodSql);
         updateWoodStmt.setString(1, "древесина");
         updateWoodStmt.setString(2, wood);
@@ -107,6 +114,9 @@ public class DatabaseManager {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
+
+        core = normalize(core);
+        wood = normalize(wood);
 
         if (!checkAndUpdateStock(core, wood)) {
             throw new SQLException("Недостаточно ингредиентов на складе: требуется 1 единица " + core + " и 1 единица " + wood);
@@ -157,6 +167,8 @@ public class DatabaseManager {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
+        componentType = normalize(componentType);
+        componentName = normalize(componentName);
         // Добавляем запись в Supplies
         String supplySql = "INSERT INTO Supplies (component_type, component_name, quantity, supply_date) VALUES (?, ?, ?, ?)";
         PreparedStatement supplyPs = connection.prepareStatement(supplySql);
@@ -167,14 +179,14 @@ public class DatabaseManager {
         supplyPs.executeUpdate();
         supplyPs.close();
 
-        String checkComponentSql = "SELECT quantity FROM Components WHERE component_type = ? AND component_name = ?";
+        String checkComponentSql = "SELECT quantity FROM Components WHERE component_type = ? AND LOWER(component_name) = ?";
         PreparedStatement checkPs = connection.prepareStatement(checkComponentSql);
         checkPs.setString(1, componentType);
         checkPs.setString(2, componentName);
         ResultSet rs = checkPs.executeQuery();
         if (rs.next()) {
             int currentQuantity = rs.getInt("quantity");
-            String updateSql = "UPDATE Components SET quantity = ? WHERE component_type = ? AND component_name = ?";
+            String updateSql = "UPDATE Components SET quantity = ? WHERE component_type = ? AND LOWER(component_name) = ?";
             PreparedStatement updatePs = connection.prepareStatement(updateSql);
             updatePs.setInt(1, currentQuantity + quantity);
             updatePs.setString(2, componentType);
@@ -283,14 +295,15 @@ public class DatabaseManager {
             throw new SQLException("Подключение к базе данных не установлено");
         }
         List<Component> components = new ArrayList<>();
-        String sql = "SELECT * FROM Components";
+        String sql = "SELECT component_type, LOWER(component_name) AS name, SUM(quantity) AS qty " +
+                     "FROM Components GROUP BY component_type, LOWER(component_name)";
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery(sql);
         while (rs.next()) {
             components.add(new Component(
                     rs.getString("component_type"),
-                    rs.getString("component_name"),
-                    rs.getInt("quantity")
+                    rs.getString("name"),
+                    rs.getInt("qty")
             ));
         }
         rs.close();
@@ -302,13 +315,14 @@ public class DatabaseManager {
         if (connection == null) {
             throw new SQLException("Подключение к базе данных не установлено");
         }
+        componentType = normalize(componentType);
         List<String> components = new ArrayList<>();
-        String sql = "SELECT component_name FROM Components WHERE component_type = ? AND quantity > 0";
+        String sql = "SELECT DISTINCT LOWER(component_name) AS name FROM Components WHERE component_type = ? AND quantity > 0";
         PreparedStatement ps = connection.prepareStatement(sql);
         ps.setString(1, componentType);
         ResultSet rs = ps.executeQuery();
         while (rs.next()) {
-            components.add(rs.getString("component_name"));
+            components.add(rs.getString("name"));
         }
         rs.close();
         ps.close();
