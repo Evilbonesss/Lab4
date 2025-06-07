@@ -2,10 +2,10 @@
 package model;
 
 public class Wand {
-    private int id;
-    private String core;
-    private String wood;
-    private String status;
+    private final int id;
+    private final String core;
+    private final String wood;
+    private final String status;
 
     public Wand(int id, String core, String wood, String status) {
         this.id = id;

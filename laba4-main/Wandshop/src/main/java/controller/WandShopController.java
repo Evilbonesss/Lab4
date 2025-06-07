@@ -11,11 +11,10 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import model.Component;
 
 public class WandShopController {
-    private DatabaseManager dbManager;
-    private WandShopView view;
+    private final DatabaseManager dbManager;
+    private final WandShopView view;
 
     public WandShopController(DatabaseManager dbManager, WandShopView view) {
         this.dbManager = dbManager;

@@ -2,11 +2,11 @@
 package model;
 
 public class Supply {
-    private int id;
-    private String componentType;
-    private String componentName;
-    private int quantity;
-    private String supplyDate;
+    private final int id;
+    private final String componentType;
+    private final String componentName;
+    private final int quantity;
+    private final String supplyDate;
 
     public Supply(int id, String componentType, String componentName, int quantity, String supplyDate) {
         this.id = id;

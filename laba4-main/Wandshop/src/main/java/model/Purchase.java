@@ -2,10 +2,10 @@
 package model;
 
 public class Purchase {
-    private int id;
-    private int wandId;
-    private int customerId;
-    private String purchaseDate;
+    private final int id;
+    private final int wandId;
+    private final int customerId;
+    private final String purchaseDate;
 
     public Purchase(int id, int wandId, int customerId, String purchaseDate) {
         this.id = id;

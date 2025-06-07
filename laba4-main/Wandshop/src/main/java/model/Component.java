@@ -2,9 +2,9 @@
 package model;
 
 public class Component { 
-    private String componentType; 
-    private String componentName; 
-    private int quantity;
+    private final String componentType; 
+    private final String componentName; 
+    private final int quantity;
     
     public Component(String componentType, String componentName, int quantity) {
         this.componentType = componentType;
